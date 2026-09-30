@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Digital Security Tool Comparison</title>
+<style>
+:root{
+  --bg:#f6f7f8; --panel:#fff; --text:#1a1d21; --muted:#5b6470; --accent:#2f6f4f;
+  --accent2:#1d4d36; --border:#dfe3e6; --chip:#eef2ef; --good:#2f6f4f; --warn:#8a5a1f;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px); box-sizing:border-box;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){--bg:#12151a;--panel:#1b1f26;--text:#e9edf1;--muted:#98a2ad;--accent:#5fbf8f;--accent2:#7fd6a8;--border:#2b313a;--chip:#232830;--good:#5fbf8f;--warn:#e0ac5f;}
+}
+:root[data-theme="dark"]{--bg:#12151a;--panel:#1b1f26;--text:#e9edf1;--muted:#98a2ad;--accent:#5fbf8f;--accent2:#7fd6a8;--border:#2b313a;--chip:#232830;--good:#5fbf8f;--warn:#e0ac5f;}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.45;}
+.wrap{max-width:880px;margin:0 auto;padding:26px 16px 60px;}
+h1{font-size:1.4rem;margin:0 0 4px;}
+.sub{color:var(--muted);font-size:.9rem;margin:0 0 16px;}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;}
+.tab{background:var(--chip);border:1px solid var(--border);color:var(--muted);padding:7px 12px;border-radius:20px;font-size:.82rem;cursor:pointer;}
+.tab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;}
+.card h3{margin:0 0 2px;font-size:1rem;display:flex;align-items:center;gap:8px;}
+.card h3 a{color:var(--accent2);font-size:.75rem;font-weight:400;text-decoration:none;}
+.badges{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;}
+.badge{font-size:.7rem;background:var(--chip);color:var(--muted);border-radius:20px;padding:3px 9px;}
+.badge.good{color:var(--good);}
+.line{font-size:.85rem;margin:4px 0;}
+.line b{color:var(--muted);font-weight:600;}
+.foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;}
+.cmp{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--muted);cursor:pointer;}
+details{margin-top:8px;}
+summary{cursor:pointer;font-size:.78rem;color:var(--accent2);}
+.tbl{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:8px;}
+.tbl td{padding:5px 6px;border-top:1px solid var(--border);vertical-align:top;}
+.tbl td:first-child{color:var(--muted);white-space:nowrap;width:110px;}
+.compareBar{position:sticky;bottom:0;background:var(--panel);border-top:1px solid var(--border);padding:10px 0;margin-top:10px;}
+.compareTbl{width:100%;border-collapse:collapse;font-size:.78rem;overflow-x:auto;display:block;}
+.compareTbl th,.compareTbl td{border:1px solid var(--border);padding:6px 8px;text-align:left;vertical-align:top;}
+.compareTbl th{background:var(--chip);}
+.btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:.78rem;cursor:pointer;}
+.btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--border);}
+footer{margin-top:24px;font-size:.75rem;color:var(--muted);text-align:center;}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script>
+// ---------------------------------------------------------------
+// TOOL DATABASE — extend this to grow the comparison table.
+// cat: circumvention | comms | data | browsing
+// ---------------------------------------------------------------
+const TOOLS = [
+{id:'tor',name:'Tor Browser',cat:'circumvention',url:'https://www.torproject.org',
+ enc:'Multi-layer (onion) routing; not full E2E on the open web past the exit node',oss:'Yes',audited:'Yes, ongoing public audits',
+ logging:'None (no account)',juris:'US nonprofit, decentralized network',cost:'Free',selfHost:'N/A — joins existing network',
+ account:'None',plat:'Windows, Mac, Linux, Android',bestFor:'Reaching blocked sites and hiding your identity from the sites you visit — strongest anonymity here.',
+ avoidIf:'You need speed for calls/streaming, or Tor itself is blocked with no bridges available.'},
+{id:'orbot',name:'Orbot',cat:'circumvention',url:'https://orbot.app',
+ enc:'Routes chosen apps through Tor',oss:'Yes',audited:'Shares Tor Project audits',logging:'None',
+ juris:'Guardian Project (US)',cost:'Free',selfHost:'N/A',account:'None',plat:'Android, iOS',
+ bestFor:'Routing other apps — not just a browser — through Tor on a phone.',avoidIf:'You need full anonymous browsing — pair with Tor Browser, don\u2019t replace it.'},
+{id:'psiphon',name:'Psiphon',cat:'circumvention',url:'https://psiphon3.com',
+ enc:'Obfuscated VPN/proxy tunnel',oss:'Yes',audited:'No independent public audit found',
+ logging:'Aggregate/session metadata per policy',juris:'Canada',cost:'Free (ad-supported) / paid',selfHost:'No',
+ account:'None',plat:'Windows, Mac, Android, iOS',bestFor:'Quickly unblocking sites when Tor is too slow or also blocked.',
+ avoidIf:'You need strong anonymity — built for access, not for hiding who you are.'},
+{id:'outline',name:'Outline VPN',cat:'circumvention',url:'https://getoutline.org',
+ enc:'Shadowsocks-based VPN tunnel',oss:'Yes',audited:'Client + server open, community reviewed',
+ logging:'Depends who runs your server',juris:'Depends on server operator',cost:'Free self-hosted, or paid via a provider',
+ selfHost:'Yes',account:'None',plat:'Windows, Mac, Linux, Android, iOS',
+ bestFor:'A newsroom or org self-hosting its own VPN server for a trusted group.',avoidIf:'You have no one to run a server — there is no public Outline network.'},
+{id:'mullvad',name:'Mullvad VPN',cat:'circumvention',url:'https://mullvad.net',
+ enc:'WireGuard / OpenVPN tunnel',oss:'Yes (apps)',audited:'Yes, regular independent audits',logging:'No-logs, audited',
+ juris:'Sweden',cost:'Paid, flat fee',selfHost:'No',account:'Anonymous account number, no email',
+ plat:'Windows, Mac, Linux, Android, iOS',bestFor:'Everyday privacy from your ISP and hiding your IP — most transparent commercial VPN.',
+ avoidIf:'You\u2019re in a country that actively blocks known VPN IPs, or need Tor-level anonymity.'},
+
+{id:'signal',name:'Signal',cat:'comms',url:'https://signal.org',
+ enc:'End-to-end',oss:'Yes',audited:'Yes, protocol widely audited',logging:'Minimal metadata, no message content',
+ juris:'US nonprofit',cost:'Free',selfHost:'No',account:'Phone number',plat:'Android, iOS, Windows, Mac, Linux',
+ bestFor:'Default choice for most people; easiest to get others onto.',avoidIf:'A phone number would identify or endanger you.'},
+{id:'simplex',name:'SimpleX Chat',cat:'comms',url:'https://simplex.chat',
+ enc:'End-to-end',oss:'Yes',audited:'Partial, ongoing',logging:'No persistent user ID',juris:'UK',
+ cost:'Free',selfHost:'Yes (relays)',account:'None',plat:'Android, iOS, Windows, Mac, Linux',
+ bestFor:'You need to talk to someone with zero identifying signup info.',avoidIf:'You need a large contact list already on a mainstream platform.'},
+{id:'briar',name:'Briar',cat:'comms',url:'https://briarproject.org',
+ enc:'End-to-end',oss:'Yes',audited:'Partial',logging:'None',juris:'UK nonprofit',cost:'Free',
+ selfHost:'N/A — peer-to-peer',account:'None',plat:'Android, Windows, Mac, Linux',
+ bestFor:'No or unreliable internet, or you expect connectivity to be cut.',avoidIf:'Contacts aren\u2019t tech-comfortable — pairing is more manual than Signal.'},
+{id:'thunderbird',name:'Thunderbird + OpenPGP',cat:'comms',url:'https://www.thunderbird.net',
+ enc:'End-to-end (message body)',oss:'Yes',audited:'Yes (OpenPGP widely reviewed)',logging:'N/A — your own email account',
+ juris:'Depends on your email provider',cost:'Free',selfHost:'Yes (your mail server)',account:'Existing email',
+ plat:'Windows, Mac, Linux',bestFor:'Encrypted email with people who already use PGP.',
+ avoidIf:'Contacts won\u2019t set up PGP keys — subject lines/metadata stay unencrypted regardless.'},
+
+{id:'veracrypt',name:'VeraCrypt',cat:'data',url:'https://veracrypt.fr',
+ enc:'AES, full-disk or container, at rest',oss:'Yes',audited:'Yes',logging:'N/A',juris:'N/A — local software',
+ cost:'Free',selfHost:'N/A',account:'None',plat:'Windows, Mac, Linux',
+ bestFor:'Hiding files on a laptop/USB drive that could be seized or lost.',avoidIf:'You need seamless cloud sync — encrypted volumes don\u2019t sync well.'},
+{id:'cryptomator',name:'Cryptomator',cat:'data',url:'https://cryptomator.org',
+ enc:'AES, per-file, at rest',oss:'Yes',audited:'Yes',logging:'N/A',juris:'N/A',cost:'Free (freemium mobile)',
+ selfHost:'N/A',account:'None',plat:'Windows, Mac, Linux, Android, iOS',
+ bestFor:'Encrypting files before they hit Dropbox/Drive/etc, including on mobile.',avoidIf:'You need whole-disk encryption, not per-file.'},
+{id:'onionshare',name:'OnionShare',cat:'data',url:'https://onionshare.org',
+ enc:'Tor-routed transfer',oss:'Yes',audited:'Partial',logging:'None',juris:'N/A',cost:'Free',
+ selfHost:'N/A — peer-to-peer over Tor',account:'None',plat:'Windows, Mac, Linux',
+ bestFor:'Sending a file or hosting a page to one person with no third-party server involved.',avoidIf:'The recipient won\u2019t install Tor Browser to receive it.'},
+{id:'restic',name:'restic',cat:'data',url:'https://restic.net',
+ enc:'AES, client-side, at rest & in transit',oss:'Yes',audited:'Partial',logging:'N/A',juris:'N/A',cost:'Free',
+ selfHost:'Yes',account:'None',plat:'Windows, Mac, Linux',
+ bestFor:'Automated encrypted backups you fully control.',avoidIf:'You want a point-and-click GUI — this is command-line.'},
+
+{id:'keepassxc',name:'KeePassXC',cat:'browsing',url:'https://keepassxc.org',
+ enc:'AES, local database',oss:'Yes',audited:'Yes',logging:'N/A',juris:'N/A',cost:'Free',
+ selfHost:'N/A — local file',account:'None',plat:'Windows, Mac, Linux',
+ bestFor:'Full control of your password database, no cloud dependency.',avoidIf:'You want automatic multi-device sync without setting it up yourself.'},
+{id:'bitwarden',name:'Bitwarden',cat:'browsing',url:'https://bitwarden.com',
+ enc:'End-to-end (zero-knowledge)',oss:'Yes',audited:'Yes, regular',logging:'Encrypted vault only',juris:'US',
+ cost:'Freemium',selfHost:'Yes',account:'Email',plat:'Android, iOS, Windows, Mac, Linux',
+ bestFor:'Password manager that syncs effortlessly across every device.',avoidIf:'You don\u2019t want any cloud-hosted copy, even encrypted — use KeePassXC.'},
+{id:'aegis',name:'Aegis Authenticator',cat:'browsing',url:'https://getaegis.app',
+ enc:'Local, encrypted export',oss:'Yes',audited:'Partial',logging:'N/A',juris:'N/A',cost:'Free',
+ selfHost:'N/A',account:'None',plat:'Android',
+ bestFor:'Two-factor codes kept off any company\u2019s server.',avoidIf:'You\u2019re on iPhone — Aegis is Android-only.'},
+];
+const CATS = [['all','All'],['circumvention','Circumvention & anonymity'],['comms','Communications & messaging'],['data','Data & file management'],['browsing','Browsing & productivity']];
+const FIELDS = [['enc','Encryption'],['oss','Open source'],['audited','Audited'],['logging','Logging'],['juris','Jurisdiction'],['cost','Cost'],['selfHost','Self-host'],['account','Account needed'],['plat','Platforms'],['bestFor','Best for'],['avoidIf','Avoid if']];
+
+let activeCat='all', compare=[];
+
+function toggleCompare(id){
+  const i=compare.indexOf(id);
+  if(i>-1) compare.splice(i,1);
+  else if(compare.length<3) compare.push(id);
+  render();
+}
+function setCat(c){activeCat=c; render();}
+
+function render(){
+  const list = TOOLS.filter(t=>activeCat==='all'||t.cat===activeCat);
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <h1>🔎 Digital Security Tool Comparison</h1>
+    <p class="sub">Compare FOSS-first tools by what actually matters beyond price: encryption model, who can see your data, and the scenario each one fits. Select up to 3 to compare side by side.</p>
+    <div class="tabs">${CATS.map(([id,label])=>`<button class="tab ${activeCat===id?'active':''}" onclick="setCat('${id}')">${label}</button>`).join('')}</div>
+    <div id="cards">${list.map(cardHtml).join('')}</div>
+    ${compare.length>1?compareHtml():''}
+    <footer>Community-maintained comparison. Ratings reflect publicly available information and may go stale — verify anything safety-critical against the tool's own docs before relying on it.</footer>
+  `;
+}
+
+function cardHtml(t){
+  const checked = compare.includes(t.id) ? 'checked' : '';
+  return `<div class="card">
+    <h3>${t.name} <a href="${t.url}" target="_blank" rel="noopener">${t.url.replace('https://','')}</a></h3>
+    <div class="badges">
+      <span class="badge ${t.oss==='Yes'?'good':''}">OSS: ${t.oss}</span>
+      <span class="badge">${t.cost}</span>
+      <span class="badge">Self-host: ${t.selfHost}</span>
+      <span class="badge">Account: ${t.account}</span>
+    </div>
+    <p class="line"><b>Best for:</b> ${t.bestFor}</p>
+    <p class="line"><b>Avoid if:</b> ${t.avoidIf}</p>
+    <div class="foot">
+      <label class="cmp"><input type="checkbox" ${checked} onchange="toggleCompare('${t.id}')"> Compare</label>
+      <details><summary>Full details</summary>
+        <table class="tbl">${FIELDS.map(([k,label])=>`<tr><td>${label}</td><td>${t[k]}</td></tr>`).join('')}</table>
+      </details>
+    </div>
+  </div>`;
+}
+
+function compareHtml(){
+  const tools = compare.map(id=>TOOLS.find(t=>t.id===id));
+  return `<div class="compareBar">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <b style="font-size:.85rem;">Comparing ${tools.length} tools</b>
+      <button class="btn ghost" onclick="compare=[];render();">Clear</button>
+    </div>
+    <table class="compareTbl">
+      <tr><th></th>${tools.map(t=>`<th>${t.name}</th>`).join('')}</tr>
+      ${FIELDS.map(([k,label])=>`<tr><td><b>${label}</b></td>${tools.map(t=>`<td>${t[k]}</td>`).join('')}</tr>`).join('')}
+    </table>
+  </div>`;
+}
+
+render();
+</script>
+</body>
+</html>
