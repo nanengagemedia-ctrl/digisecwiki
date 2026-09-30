@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Digital Security Tool Finder</title>
+<style>
+:root{
+  --bg:#f6f7f8; --panel:#ffffff; --text:#1a1d21; --muted:#5b6470; --accent:#2f6f4f;
+  --accent2:#1d4d36; --border:#dfe3e6; --danger:#8a3b2b; --danger-bg:#fbeee9; --chip:#eef2ef;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  box-sizing:border-box;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12151a; --panel:#1b1f26; --text:#e9edf1; --muted:#98a2ad; --accent:#5fbf8f;
+    --accent2:#7fd6a8; --border:#2b313a; --danger:#e39683; --danger-bg:#2c1c17; --chip:#232830;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12151a; --panel:#1b1f26; --text:#e9edf1; --muted:#98a2ad; --accent:#5fbf8f;
+  --accent2:#7fd6a8; --border:#2b313a; --danger:#e39683; --danger-bg:#2c1c17; --chip:#232830;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.45;}
+.wrap{max-width:720px;margin:0 auto;padding:28px 18px 60px;}
+header{margin-bottom:18px;}
+h1{font-size:1.5rem;margin:0 0 4px;}
+.sub{color:var(--muted);font-size:.92rem;margin:0 0 14px;}
+.privacy{font-size:.8rem;color:var(--muted);background:var(--chip);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:18px;}
+.crumbs{font-size:.78rem;color:var(--muted);margin-bottom:10px;min-height:1em;}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px;}
+.q{font-size:1.05rem;font-weight:600;margin:0 0 14px;}
+.opt{display:block;width:100%;text-align:left;background:var(--chip);border:1px solid var(--border);color:var(--text);
+  padding:12px 14px;border-radius:10px;margin-bottom:8px;font-size:.95rem;cursor:pointer;}
+.opt:hover{border-color:var(--accent);}
+.opt small{display:block;color:var(--muted);font-weight:400;margin-top:2px;}
+.row{display:flex;gap:10px;flex-wrap:wrap;}
+.btn{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:9px 14px;font-size:.85rem;cursor:pointer;}
+.btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--border);}
+.tool{border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;background:var(--panel);}
+.tool h3{margin:0 0 4px;font-size:1rem;}
+.tool a{color:var(--accent2);font-size:.82rem;text-decoration:none;}
+.tool p{margin:6px 0 8px;font-size:.9rem;color:var(--text);}
+.tags{display:flex;flex-wrap:wrap;gap:6px;}
+.tag{font-size:.7rem;background:var(--chip);color:var(--muted);border-radius:20px;padding:3px 9px;}
+.caution{background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger);border-radius:10px;padding:12px 14px;font-size:.85rem;margin-bottom:14px;}
+.section-title{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:22px 0 8px;}
+footer{margin-top:30px;font-size:.75rem;color:var(--muted);text-align:center;}
+.result-empty{color:var(--muted);font-size:.9rem;}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<script>
+// ---------------------------------------------------------------
+// TOOL DATABASE — edit/extend this array to grow the tool list.
+// tags: goal-*, task-*, concern-*, adv-{low|medium|high}, net-{open|censored|offline}, no-phone
+// plat: android | ios | windows | mac | linux  (or ['all'])
+// why: plain-language, "what this does for you" — shown first.
+// desc: fuller technical description — shown only in the full comparison list.
+// ---------------------------------------------------------------
+const TOOLS = [
+ {id:'signal',name:'Signal',url:'https://signal.org',plat:['android','ios','windows','mac','linux'],
+  why:"The easiest encrypted messaging app to actually get friends and family using — solid default for most people.",
+  desc:"Mainstream end-to-end encrypted messaging and calls. Widely audited, easiest to get contacts onto. Requires a phone number.",
+  tags:['goal-comms','adv-low','adv-medium','net-open','task-calls']},
+ {id:'molly',name:'Molly (Signal fork)',url:'https://molly.im',plat:['android'],
+  why:"Same network as Signal, with extra protection for the message history stored on your phone.",
+  desc:"Hardened Signal fork: encrypts the local message database at rest and has anti-forensic options. Same network as Signal.",
+  tags:['goal-comms','adv-medium','adv-high']},
+ {id:'simplex',name:'SimpleX Chat',url:'https://simplex.chat',plat:['android','ios','windows','mac','linux'],
+  why:"Lets you message without ever handing over a phone number or any ID tied to you.",
+  desc:"Messaging with no phone number and no persistent user ID — even SimpleX can't see who's talking to whom.",
+  tags:['goal-comms','adv-medium','adv-high','net-open','no-phone']},
+ {id:'briar',name:'Briar',url:'https://briarproject.org',plat:['android','windows','mac','linux'],
+  why:"Keeps working with no internet at all, syncing phone-to-phone over Bluetooth, Wi-Fi, or Tor.",
+  desc:"Syncs over Tor, Wi-Fi, or Bluetooth directly between devices — works with no internet and no central server. Built for blackout / high-surveillance conditions.",
+  tags:['goal-comms','adv-high','net-censored','net-offline','no-phone']},
+ {id:'session',name:'Session',url:'https://getsession.org',plat:['android','ios','windows','mac','linux'],
+  why:"No phone number needed, but weaker guarantees than SimpleX or Briar about hiding who's talking to whom.",
+  desc:"Decentralized, onion-routed messenger, no phone number required. Metadata protection is weaker than Tor-based tools.",
+  tags:['goal-comms','adv-medium','no-phone']},
+ {id:'jitsi',name:'Jitsi Meet',url:'https://meet.jit.si',plat:['android','ios','windows','mac','linux'],
+  why:"Free video calls that work instantly in a browser — fine for everyday calls, not built for high-risk anonymity.",
+  desc:"Open-source video calling, usable instantly or self-hosted. Not metadata-hardened — fine for low-risk group calls.",
+  tags:['goal-comms','task-calls','adv-low']},
+ {id:'tor',name:'Tor Browser',url:'https://www.torproject.org',plat:['windows','mac','linux','android'],
+  why:"Routes your browsing through several encrypted hops so no single party can see both who you are and what you're visiting.",
+  desc:"Routes browsing through the Tor network to anonymize traffic and reach blocked sites.",
+  tags:['goal-task','task-browse-anon','adv-medium','adv-high','net-censored']},
+ {id:'tails',name:'Tails OS',url:'https://tails.net',plat:['linux'],
+  why:"A temporary operating system you boot from a USB stick — nothing is saved once you shut the computer down.",
+  desc:"Live operating system that boots from a USB stick on most PCs, forces all traffic through Tor, and leaves no trace on the host machine after shutdown.",
+  tags:['goal-task','task-whole-device','goal-unsafe','adv-high']},
+ {id:'graphene',name:'GrapheneOS',url:'https://grapheneos.org',plat:['android'],
+  why:"A hardened replacement operating system for a Google Pixel phone, built to leak less data than stock Android.",
+  desc:"Hardened Android replacement OS — Google Pixel hardware only. Minimizes tracking and attack surface for a primary device.",
+  tags:['goal-task','task-whole-device','goal-unsafe','adv-high']},
+ {id:'veracrypt',name:'VeraCrypt',url:'https://veracrypt.fr',plat:['windows','mac','linux'],
+  why:"Locks a folder or your whole drive so it's unreadable without your password, even if the device is stolen.",
+  desc:"Creates encrypted containers or full-disk volumes. Long-audited, strong default choice for local file/disk encryption.",
+  tags:['goal-task','task-encrypt-files']},
+ {id:'cryptomator',name:'Cryptomator',url:'https://cryptomator.org',plat:['android','ios','windows','mac','linux'],
+  why:"Encrypts individual files before they sync to Dropbox, Google Drive, or similar cloud storage.",
+  desc:"Encrypts individual files client-side before they sync to Dropbox/Drive/etc. Works on desktop and mobile.",
+  tags:['goal-task','task-encrypt-files']},
+ {id:'keepassxc',name:'KeePassXC',url:'https://keepassxc.org',plat:['windows','mac','linux'],
+  why:"Generates and stores strong, unique passwords in a file that stays on your device — you control sync yourself.",
+  desc:"Offline password manager — you control the database file. Pair with KeePassDX or Strongbox for mobile access.",
+  tags:['goal-task','task-passwords','goal-unsafe','concern-compromise']},
+ {id:'bitwarden',name:'Bitwarden',url:'https://bitwarden.com',plat:['android','ios','windows','mac','linux'],
+  why:"Generates and stores strong, unique passwords and syncs them automatically across your devices.",
+  desc:"Open-source password manager with easy cross-device sync via the free hosted service, or self-host it yourself.",
+  tags:['goal-task','task-passwords','goal-unsafe','concern-compromise']},
+ {id:'aegis',name:'Aegis Authenticator',url:'https://getaegis.app',plat:['android'],
+  why:"Generates your two-factor login codes on your phone instead of relying on text messages, which can be intercepted.",
+  desc:"Open-source 2FA/TOTP code app with encrypted, exportable backups.",
+  tags:['goal-task','task-2fa','goal-unsafe','concern-compromise']},
+ {id:'mat2',name:'MAT2',url:'https://0xacab.org/jvoisin/mat2',plat:['linux','windows','mac'],
+  why:"Strips hidden details — GPS location, device model, author name — out of a photo or document before you share it.",
+  desc:"Strips hidden metadata (GPS location, device info, author name) from photos and documents before you share them. Command-line; some GUI front-ends exist.",
+  tags:['goal-task','task-metadata']},
+ {id:'onionshare',name:'OnionShare',url:'https://onionshare.org',plat:['windows','mac','linux'],
+  why:"Sends a file or hosts a page directly between two devices over Tor, with no company's server involved.",
+  desc:"Share files, host a simple site, or chat peer-to-peer over Tor — no third-party server involved.",
+  tags:['goal-task','task-share-files','adv-medium','adv-high']},
+ {id:'restic',name:'restic',url:'https://restic.net',plat:['windows','mac','linux'],
+  why:"Backs up your files after encrypting them on your own device first, to a cloud or drive you choose.",
+  desc:"Fast, open-source, encrypted backup tool that can push to cloud storage or a local drive.",
+  tags:['goal-task','task-backups']},
+ {id:'thunderbird',name:'Thunderbird + OpenPGP',url:'https://www.thunderbird.net',plat:['windows','mac','linux'],
+  why:"Adds end-to-end encryption to your existing email account so only the intended recipient can read the message.",
+  desc:"Email client with built-in OpenPGP for end-to-end encrypted email. Both sides need to set up keys.",
+  tags:['goal-task','task-email']},
+ {id:'haven',name:'Haven',url:'https://guardianproject.github.io/haven/',plat:['android'],
+  why:"Turns a spare Android phone into a sensor that flags if someone physically tampers with a room or device while you're away.",
+  desc:"Turns a spare Android phone into a motion/sound/light sensor to flag physical tampering with a room or device. Development has slowed — check it still builds/updates before relying on it.",
+  tags:['goal-unsafe','concern-partner','concern-state']},
+];
+
+// ---------------------------------------------------------------
+// QUESTION GRAPH
+// ---------------------------------------------------------------
+const PLATFORM_Q = {id:'platform', text:"What device will you mainly use?",
+  opts:[['Android phone','android'],['iPhone','ios'],['Windows PC','windows'],['Mac','mac'],['Linux PC','linux']]};
+
+const NODES = {
+  start:{text:"What's going on?", opts:[
+    {label:"I need to set up safe communications", next:'comms_adv'},
+    {label:"I need a tool for a specific task", next:'task_type'},
+    {label:"I don't feel safe and think I'm being watched or targeted", next:'unsafe_concern'},
+    {label:"Walk me through a general security check-up", next:'RESULT_CHECKUP'},
+    {label:"Just show me everything", next:'RESULT_ALL'},
+  ]},
+  comms_adv:{text:"How serious is the risk if this communication were exposed?", opts:[
+    {label:"Low — general privacy preference", sub:"Nothing puts anyone in danger.", next:'comms_net', tag:'adv-low'},
+    {label:"Medium — could cause real harm (job, relationship, legal)", next:'comms_net', tag:'adv-medium'},
+    {label:"High — physical safety or state-level risk", next:'comms_net', tag:'adv-high'},
+  ]},
+  comms_net:{text:"What's the network situation where you'll use this?", opts:[
+    {label:"Normal open internet", next:'platform', tag:'net-open'},
+    {label:"Internet is censored or monitored", next:'platform', tag:'net-censored'},
+    {label:"Unreliable or no internet access", next:'platform', tag:'net-offline'},
+  ], goal:'goal-comms'},
+  task_type:{text:"What do you want to happen?", opts:[
+    {label:"Keep files unreadable if a device is lost, stolen, or seized", next:'platform', tag:'task-encrypt-files'},
+    {label:"Stop reusing passwords / manage logins safely", next:'platform', tag:'task-passwords'},
+    {label:"Browse the internet without being tracked or blocked", next:'platform', tag:'task-browse-anon'},
+    {label:"Remove hidden info (location, device) from a file before sharing it", next:'platform', tag:'task-metadata'},
+    {label:"Lock down an entire device, not just one app", next:'platform', tag:'task-whole-device'},
+    {label:"Back up my files safely", next:'platform', tag:'task-backups'},
+    {label:"Send encrypted email", next:'platform', tag:'task-email'},
+    {label:"Send a file to someone without a company's server seeing it", next:'platform', tag:'task-share-files'},
+  ], goal:'goal-task'},
+  unsafe_concern:{text:"What's actually happening that made you feel unsafe? Pick what's closest — we'll work backward from there.", opts:[
+    {label:"People seem to know things I only ever said in private", next:'unsafe_leak'},
+    {label:"I'm getting login alerts, password-reset emails, or 2FA codes I didn't request", next:'platform', tag:'concern-compromise'},
+    {label:"Someone close to me always seems to know my location or activity", next:'platform', tag:'concern-partner'},
+    {label:"I'm getting threats or messages that include private details about me", next:'platform', tag:'concern-harassment'},
+    {label:"My device is acting strange — battery drain, heat, unknown apps, random restarts", next:'platform', tag:'concern-malware'},
+    {label:"I was recently stopped, detained, or had a device searched", next:'platform', tag:'concern-state'},
+    {label:"No specific incident — just a general uneasy feeling", next:'platform', tag:'concern-general'},
+  ], goal:'goal-unsafe'},
+  unsafe_leak:{text:"Where would that information most likely have come from?", opts:[
+    {label:"Someone has had physical access to my phone or laptop", next:'platform', tag:'concern-partner'},
+    {label:"It was only ever typed into an app or online account — no one touched my device", next:'platform', tag:'concern-compromise'},
+    {label:"I honestly don't know", next:'platform', tag:'concern-general'},
+  ]},
+  platform: PLATFORM_Q,
+};
+
+// ---------------------------------------------------------------
+// GENERAL CHECK-UP — structured to mirror Security in a Box's own
+// taxonomy (securityinabox.org, Front Line Defenders, CC BY-SA 4.0)
+// so we're not rewriting their guidance, just pointing to it and
+// mapping it to FOSS tools where one applies.
+// ---------------------------------------------------------------
+const CHECKUP = [
+ {cat:'Assess & Plan', items:[
+   {t:'Protect against physical threats', u:'https://securityinabox.org/en/assess-plan/physical-security', tools:[]},
+   {t:'Create and protect multiple online identities', u:'https://securityinabox.org/en/assess-plan/multiple-identities', tools:['SimpleX Chat','Session']},
+   {t:'Protect the privacy of your online communications', u:'https://securityinabox.org/en/assess-plan/private-communication', tools:['Signal','Briar']},
+   {t:'Protect your information and devices while traveling', u:'https://securityinabox.org/en/assess-plan/safer-travel', tools:['VeraCrypt','Tails OS']},
+ ]},
+ {cat:'Passwords', items:[
+   {t:'Create and maintain strong passwords', u:'https://securityinabox.org/en/passwords/passwords', tools:['KeePassXC','Bitwarden']},
+   {t:'Manage your passwords safely', u:'https://securityinabox.org/en/passwords/password-managers', tools:['KeePassXC','Bitwarden']},
+   {t:'Use two-factor authentication', u:'https://securityinabox.org/en/passwords/2fa', tools:['Aegis Authenticator']},
+ ]},
+ {cat:'Communication', items:[
+   {t:'Protect yourself on social media', u:'https://securityinabox.org/en/communication/social-media', tools:[]},
+   {t:'Secure your email communications', u:'https://securityinabox.org/en/communication/secure-email', tools:['Thunderbird + OpenPGP']},
+   {t:'Use messaging apps more securely', u:'https://securityinabox.org/en/communication/secure-chat', tools:['Signal','SimpleX Chat','Briar']},
+   {t:'Recover from possible account compromise', u:'https://securityinabox.org/en/communication/account-compromise', tools:[]},
+ ]},
+ {cat:'Phones & Computers', items:[
+   {t:'Protect against malware', u:'https://securityinabox.org/en/phones-and-computers/malware', tools:[], gap:true},
+   {t:'Protect your Android device', u:'https://securityinabox.org/en/phones-and-computers/android', tools:['GrapheneOS','Aegis Authenticator','Orbot']},
+   {t:'Protect your iOS device', u:'https://securityinabox.org/en/phones-and-computers/ios', tools:['Orbot'], gap:true},
+   {t:'Protect your Windows computer', u:'https://securityinabox.org/en/phones-and-computers/windows', tools:['VeraCrypt','KeePassXC']},
+   {t:'Protect your Mac computer', u:'https://securityinabox.org/en/phones-and-computers/mac', tools:['VeraCrypt','Cryptomator']},
+   {t:'Protect your Linux computer', u:'https://securityinabox.org/en/phones-and-computers/linux', tools:['Tails OS','restic']},
+ ]},
+ {cat:'Internet Connection', items:[
+   {t:'How the internet works and how it can be censored', u:'https://securityinabox.org/en/internet-connection/how-the-internet-works', tools:[]},
+   {t:'Browse the web more securely', u:'https://securityinabox.org/en/internet-connection/safer-browsing', tools:['Tor Browser']},
+   {t:'Circumvent internet blockages and monitoring', u:'https://securityinabox.org/en/internet-connection/circumvention', tools:['Tor Browser','Psiphon','Outline VPN','Mullvad VPN']},
+   {t:'Anonymize your connections and communications', u:'https://securityinabox.org/en/internet-connection/anonymity', tools:['Tor Browser','Orbot']},
+ ]},
+ {cat:'Files', items:[
+   {t:'Protect your sensitive information', u:'https://securityinabox.org/en/files/secure-file-storage', tools:['VeraCrypt','Cryptomator']},
+   {t:'Back up and recover from information loss', u:'https://securityinabox.org/en/files/backup', tools:['restic']},
+   {t:'Destroy sensitive information', u:'https://securityinabox.org/en/files/destroy-sensitive-information', tools:[], gap:true},
+   {t:'Destroy identifying information (metadata)', u:'https://securityinabox.org/en/files/destroy-identifying-information', tools:['MAT2']},
+ ]},
+];
+const TOOL_COMPARE_URL = 'https://claude.ai/artifact/VG8PfVEQrVnm1PC7KxWLuF';
+
+function renderCheckup(){
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <header>
+      <h1>🛡️ Digital Security Tool Finder</h1>
+      <p class="sub">General security check-up</p>
+      <div class="privacy">This walks the same topics as <a href="https://securityinabox.org/en" target="_blank" rel="noopener" style="color:var(--accent2)">Security in a Box</a> (Front Line Defenders) — we link to their guidance rather than duplicate it, and map each topic to FOSS tools where one fits. Items marked "no FOSS tool cataloged yet" are real gaps, not oversights.</div>
+    </header>
+    ${CHECKUP.map(sec=>`
+      <div class="section-title">${sec.cat}</div>
+      ${sec.items.map(it=>`
+        <div class="tool">
+          <h3><a href="${it.u}" target="_blank" rel="noopener" style="color:var(--text);text-decoration:none;">${it.t}</a></h3>
+          <div class="tags">
+            ${it.tools.map(tn=>`<span class="tag">${tn}</span>`).join('')}
+            ${it.tools.length===0 ? `<span class="tag" style="color:var(--danger);">${it.gap? 'no FOSS tool cataloged yet':'process, not a tool'}</span>` : ''}
+          </div>
+        </div>`).join('')}
+    `).join('')}
+    <p style="font-size:.8rem;color:var(--muted);">Full comparison of the tools above (encryption model, audits, jurisdiction, cost): <a href="${TOOL_COMPARE_URL}" target="_blank" rel="noopener" style="color:var(--accent2)">Tool comparison table →</a></p>
+    <div class="row" style="margin-top:10px;"><button class="btn ghost" onclick="reset()">Start over</button></div>
+    <footer>Nothing you enter here is saved, logged, or sent anywhere.</footer>
+  `;
+}
+
+// ---------------------------------------------------------------
+// CONCERN GUIDES — step-by-step responses for the "don't feel safe"
+// branch. This exists because generic tag-matched tool cards are the
+// wrong output here: someone whose device was just searched needs an
+// ordered action list, not a password manager. Only steps with a real
+// FOSS fit reference a tool; everything else says so plainly and
+// links to Security in a Box instead of guessing.
+// ---------------------------------------------------------------
+const CONCERN_GUIDES = {
+ 'concern-compromise':{title:"This looks like an account takeover, not a device problem",
+  steps:[
+   {t:"Change the password now",d:"From a device you trust — not the one you suspect is compromised — set a new, unique password on the affected account.",tools:['KeePassXC','Bitwarden']},
+   {t:"Check active sessions",d:"In the account's security settings, find \u201cactive sessions\u201d or \u201cconnected devices\u201d and sign out anything you don't recognize."},
+   {t:"Turn on 2FA",d:"If it wasn't already on, enable it now — this blocks most repeat takeovers even if the password leaks again.",tools:['Aegis Authenticator']},
+   {t:"Check for silent persistence",d:"Look at recovery email/phone and mail-forwarding rules — attackers often add these so they keep access after you change the password."},
+   {t:"Repeat for linked accounts",d:"If this account can reset others (usually email), assume those need the same check."},
+  ], link:{u:'https://securityinabox.org/en/communication/account-compromise',label:'Security in a Box: recovering from account compromise'}},
+ 'concern-partner':{title:"Possible device monitoring by someone with access to you",
+  warn:"Checking for or removing spyware can alert whoever is monitoring you, which can escalate risk before you're safe. If there's any chance of physical danger, loop in a domestic violence hotline or a stalkerware-specialist service before acting on your own.",
+  steps:[
+   {t:"Get safety-specific support first",d:"Stalkerware-specialist services can help you weigh removing it now against planning a safer exit first — that judgment call matters more than any tool.",link:{u:'https://stopstalkerware.org',label:'Coalition Against Stalkerware — support directory'}},
+   {t:"If it's safe to check",d:"Look at installed apps, device admin permissions, and accessibility permissions for anything unfamiliar — but know some spyware notifies its operator the moment it's opened or removed."},
+   {t:"Plan around a device they've never touched",d:"Longer-term, a fresh device and accounts they don't have access to is safer than trying to \u201cclean\u201d one they've already compromised.",tools:['GrapheneOS']},
+  ], link:{u:'https://securityinabox.org/en/assess-plan/physical-security',label:'Security in a Box: protect against physical threats'}},
+ 'concern-malware':{title:"Possible malware — no vetted FOSS scanner in this database yet",
+  gapNote:"This is a real gap, not an oversight: solid open-source anti-malware for consumer phones/laptops is thin right now. Until that's filled in, here's manual mitigation instead of a tool pointer.",
+  steps:[
+   {t:"Check what's actually installed",d:"Review the app list for anything you don't remember installing, and check which apps have admin/accessibility permissions."},
+   {t:"Update everything",d:"OS and app updates patch most of the vulnerabilities malware relies on."},
+   {t:"Uninstall anything suspicious",d:"If in doubt, remove it rather than investigate — you lose little by uninstalling an app you don't recognize."},
+   {t:"Back up what matters, then consider a factory reset",d:"If symptoms continue, a clean reinstall clears almost everything malware-related.",tools:['Cryptomator','restic']},
+  ], link:{u:'https://securityinabox.org/en/phones-and-computers/malware',label:'Security in a Box: protect against malware'}},
+ 'concern-state':{title:"Treat the device as compromised from the moment it was taken",
+  steps:[
+   {t:"Remote-lock or remote-wipe it now, if you still can",d:"__PLATFORM__"},
+   {t:"Change passwords for anything accessible from that device",d:"Do this from a different, trusted device.",tools:['KeePassXC','Bitwarden']},
+   {t:"Log out other sessions",d:"Most major services let you remotely sign out a specific device from account security settings."},
+   {t:"Assume contacts and message history were seen",d:"Consider a heads-up to anyone whose safety could be affected by what was on the device."},
+   {t:"For next time",d:"A device that boots into an amnesiac OS, or a hardened OS with no account tied to it, limits what a future search can expose.",tools:['Tails OS','GrapheneOS']},
+  ], link:{u:'https://securityinabox.org/en/blog/2025-09-detentions',label:'Security in a Box: what to do when you risk being arrested'}},
+ 'concern-harassment':{title:"Mostly a process problem, not a tools problem",
+  steps:[
+   {t:"Document everything first",d:"Screenshot with timestamps and URLs visible before you report or block anything — reporting often removes the evidence."},
+   {t:"Lock down account privacy settings",d:"Limit who can see your posts, followers list, and contact info."},
+   {t:"Report and block through the platform",d:"Most platforms have a harassment/doxxing-specific report flow that moves faster than a general report."},
+   {t:"Tighten account security as a precaution",d:"Doxxing often follows — or is followed by attempts at — account compromise.",tools:['Bitwarden','Aegis Authenticator']},
+  ], link:{u:'https://securityinabox.org/en/communication/social-media',label:'Security in a Box: protect yourself on social media'}},
+ 'concern-general':{title:"No specific incident — a baseline check-up",
+  steps:[
+   {t:"Unique passwords everywhere",d:"A password manager makes this painless.",tools:['KeePassXC','Bitwarden']},
+   {t:"2FA on your important accounts",d:"Start with email and anything that can reset other accounts.",tools:['Aegis Authenticator']},
+   {t:"Check who has access",d:"Review connected apps and active sessions on your main accounts."},
+   {t:"Keep devices updated",d:"Most real-world compromises exploit already-patched vulnerabilities."},
+  ], link:{u:'https://securityinabox.org/en',label:'Or walk the full Security in a Box check-up'}},
+};
+
+function toolLink(name){
+  const t = TOOLS.find(x=>x.name===name);
+  return t ? `<a href="${t.url}" target="_blank" rel="noopener" class="tag" style="text-decoration:none;">${name} →</a>` : `<span class="tag">${name}</span>`;
+}
+
+// ---------------------------------------------------------------
+// TASK GUIDES — one prioritized, plain-language answer per task,
+// instead of a scored list (which is how Tor Browser used to show
+// up for "back up my files": it matched on the broad goal-task tag
+// alone). Each task now points at exactly the tool(s) that apply.
+// ---------------------------------------------------------------
+const TASK_GUIDES = {
+ 'task-encrypt-files':{title:"Keep files unreadable to anyone who gets hold of them", primary:'veracrypt', alt:['cryptomator'],
+  step:"Files that live on a local drive → VeraCrypt. Files you sync to Dropbox/Drive/etc → Cryptomator.",
+  learn:'https://securityinabox.org/en/files/secure-file-storage'},
+ 'task-passwords':{title:"Stop reusing passwords and limit the damage from any one leak", primary:'bitwarden', alt:['keepassxc'],
+  step:"Bitwarden syncs itself across devices; KeePassXC keeps the database local only. Either way, also turn on 2FA — Aegis Authenticator generates codes without relying on text messages.",
+  learn:'https://securityinabox.org/en/passwords/password-managers'},
+ 'task-browse-anon':{title:"Browse without sites, your ISP, or a censor seeing what you're doing", primary:'tor', alt:[],
+  step:"Install it and browse — no extra setup needed for basic anonymous browsing.",
+  learn:'https://securityinabox.org/en/internet-connection/safer-browsing'},
+ 'task-metadata':{title:"Remove hidden info from a file before you share it", primary:'mat2', alt:[],
+  step:"Run it on the file before you upload or send it, not after.",
+  learn:'https://securityinabox.org/en/files/destroy-identifying-information'},
+ 'task-whole-device':{title:"Lock down an entire device, not just one app", primary:'tails', alt:['graphene'],
+  step:"Tails is for one sensitive session on any computer, then gone. GrapheneOS replaces the OS on a phone you use every day — Google Pixel only.",
+  learn:'https://securityinabox.org/en/phones-and-computers/malware'},
+ 'task-backups':{title:"Back up your files without handing an unencrypted copy to a cloud provider", primary:'restic', alt:[],
+  step:"It's command-line only — a simpler point-and-click option is a gap in this database right now.",
+  learn:'https://securityinabox.org/en/files/backup'},
+ 'task-email':{title:"Make your email unreadable to anyone except the recipient", primary:'thunderbird', alt:[],
+  step:"Both you and the person you're emailing need this set up — it doesn't work one-sided.",
+  learn:'https://securityinabox.org/en/communication/secure-email'},
+ 'task-share-files':{title:"Send a file to one person without a company's server seeing it", primary:'onionshare', alt:[],
+  step:"The other person needs Tor Browser installed to receive it.",
+  learn:'https://securityinabox.org/en/files/secure-file-storage'},
+};
+
+// ---------------------------------------------------------------
+// COMMS GUIDE — a small decision table instead of scoring, so the
+// adversary level and network condition actually narrow the pick
+// rather than every goal-comms tool showing up regardless.
+// ---------------------------------------------------------------
+function commsGuide(adv, net){
+  if(net==='net-offline') return {title:"Something that works without relying on the internet", primary:'briar', alt:['simplex'],
+    step:"Pair Briar with your contact in person (or by QR) ahead of time — that one-time pairing is what lets it work offline later.",
+    learn:'https://securityinabox.org/en/assess-plan/private-communication'};
+  if(net==='net-censored'){
+    if(adv==='adv-high') return {title:"High-risk communication where the network itself is watched or blocked", primary:'briar', alt:['simplex'],
+      step:"Briar can route over Tor automatically. If you also need to reach Signal or SimpleX, pair either with Tor Browser.",
+      learn:'https://securityinabox.org/en/internet-connection/circumvention'};
+    return {title:"Everyday-risk messaging on a censored or monitored network", primary:'signal', alt:['simplex'],
+      step:"You may need Tor Browser or a VPN just to reach Signal's servers if they're blocked where you are.",
+      learn:'https://securityinabox.org/en/internet-connection/circumvention'};
+  }
+  if(adv==='adv-high') return {title:"High-risk communication over a normal internet connection", primary:'simplex', alt:['briar'],
+    step:"SimpleX needs no phone number or ID — set it up ahead of time and verify your contact's connection code out-of-band.",
+    learn:'https://securityinabox.org/en/communication/secure-chat'};
+  if(adv==='adv-medium') return {title:"Communication that could cause real harm if exposed", primary:'signal', alt:['simplex'],
+    step:"Install Signal and verify your contact's safety number in person or over a different channel.",
+    learn:'https://securityinabox.org/en/communication/secure-chat'};
+  return {title:"Everyday private messaging", primary:'signal', alt:['jitsi'],
+    step:"Signal is the easiest starting point — most contacts can probably already use it.",
+    learn:'https://securityinabox.org/en/communication/secure-chat'};
+}
+
+function toolCardHtml(id, badge){
+  const t = TOOLS.find(x=>x.id===id);
+  if(!t) return '';
+  const pill = badge ? `<span class="tag" style="background:var(--accent);color:#fff;margin-right:6px;">${badge}</span>` : '';
+  return `<div class="tool">
+    <h3>${pill}${t.name}</h3>
+    <p>${t.why}</p>
+    <a href="${t.url}" target="_blank" rel="noopener">${t.url.replace('https://','')} →</a>
+  </div>`;
+}
+
+function renderPriorityGuide(sub, primaryId, altIds, step, learnUrl){
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <header><h1>🛡️ Digital Security Tool Finder</h1><p class="sub">${sub}</p></header>
+    <div class="crumbs">${trail.map(t=>t.label).join(' → ')}</div>
+    ${toolCardHtml(primaryId,'Best fit')}
+    ${altIds.map(id=>toolCardHtml(id,'Also works')).join('')}
+    <p class="line" style="font-size:.85rem;"><b>Next step:</b> ${step}</p>
+    <p style="font-size:.8rem;color:var(--muted);margin-top:10px;">
+      ${learnUrl ? `Want to understand why this works, in plain terms? <a href="${learnUrl}" target="_blank" rel="noopener" style="color:var(--accent2)">Security in a Box explains it →</a><br>` : ''}
+      Full technical comparison (encryption, audits, jurisdiction): <a href="${TOOL_COMPARE_URL}" target="_blank" rel="noopener" style="color:var(--accent2)">Tool comparison table →</a>
+    </p>
+    <div class="row" style="margin-top:16px;">
+      <button class="btn ghost" onclick="goBack()">← Back</button>
+      <button class="btn ghost" onclick="reset()">Start over</button>
+    </div>
+    <footer>Nothing you enter here is saved, logged, or sent anywhere.</footer>
+  `;
+}
+
+function renderTaskResult(){
+  const tag = profile.tags.find(t=>t.startsWith('task-'));
+  const g = TASK_GUIDES[tag];
+  let learn = g.learn;
+  if(tag==='task-whole-device' && profile.platform){
+    const byPlat = {android:'https://securityinabox.org/en/phones-and-computers/android', ios:'https://securityinabox.org/en/phones-and-computers/ios',
+      windows:'https://securityinabox.org/en/phones-and-computers/windows', mac:'https://securityinabox.org/en/phones-and-computers/mac', linux:'https://securityinabox.org/en/phones-and-computers/linux'};
+    learn = byPlat[profile.platform] || learn;
+  }
+  renderPriorityGuide(g.title, g.primary, g.alt, g.step, learn);
+}
+
+function renderCommsResult(){
+  const adv = profile.tags.find(t=>t.startsWith('adv-'));
+  const net = profile.tags.find(t=>t.startsWith('net-'));
+  const g = commsGuide(adv, net);
+  renderPriorityGuide(g.title, g.primary, g.alt, g.step, g.learn);
+}
+
+function renderUnsafeResult(){
+  const concern = profile.tags.find(t=>t.startsWith('concern-')) || 'concern-general';
+  const guide = CONCERN_GUIDES[concern];
+  const platformNote = profile.platform==='android'
+    ? "Go to findmydevice.google.com (or the Find My Device app) from another device — you can lock it, message it, or erase it remotely if it's still online. Not open-source, but it's the fastest real option right now."
+    : profile.platform==='ios'
+    ? "Go to icloud.com/find (or Find My on another Apple device) — you can lock or erase it remotely if it's still online."
+    : "If the drive wasn't fully encrypted (VeraCrypt/BitLocker/FileVault), assume its contents are now exposed — physical access defeats a login password fairly easily.";
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <header><h1>🛡️ Digital Security Tool Finder</h1><p class="sub">${guide.title}</p></header>
+    <div class="crumbs">${trail.map(t=>t.label).join(' → ')}</div>
+    ${guide.warn ? `<div class="caution">${guide.warn}</div>` : ''}
+    ${guide.gapNote ? `<div class="caution" style="color:var(--muted);border-color:var(--border);background:var(--chip);">${guide.gapNote}</div>` : ''}
+    ${guide.steps.map((s,i)=>`
+      <div class="tool">
+        <h3>${i+1}. ${s.t}</h3>
+        <p>${(s.d||'').replace('__PLATFORM__', platformNote)}</p>
+        ${s.link ? `<a href="${s.link.u}" target="_blank" rel="noopener">${s.link.label} →</a>` : ''}
+        ${s.tools ? `<div class="tags">${s.tools.map(toolLink).join('')}</div>` : ''}
+      </div>`).join('')}
+    <p style="font-size:.8rem;color:var(--muted);margin-top:14px;">More background: <a href="${guide.link.u}" target="_blank" rel="noopener" style="color:var(--accent2);">${guide.link.label} →</a></p>
+    <div class="row" style="margin-top:16px;">
+      <button class="btn ghost" onclick="goBack()">← Back</button>
+      <button class="btn ghost" onclick="reset()">Start over</button>
+    </div>
+    <footer>Nothing you enter here is saved, logged, or sent anywhere.</footer>
+  `;
+}
+
+// ---------------------------------------------------------------
+// STATE + RENDER
+// ---------------------------------------------------------------
+let node = 'start', profile = {tags:[]}, trail = [];
+
+function choose(nodeId, idx){
+  const curNode = NODES[nodeId];
+  const opt = curNode.opts[idx];
+  trail.push({nodeId, idx, label: opt.label});
+  if(opt.tag) profile.tags.push(opt.tag);
+  if(curNode.goal) profile.tags.push(curNode.goal);
+  if(nodeId==='platform'){
+    profile.platform = opt.value;
+    if(profile.tags.includes('goal-unsafe')) renderUnsafeResult();
+    else if(profile.tags.includes('goal-task')) renderTaskResult();
+    else if(profile.tags.includes('goal-comms')) renderCommsResult();
+    else renderResults();
+    return;
+  }
+  node = opt.next;
+  if(node==='RESULT_ALL'){ renderResults(true); return; }
+  if(node==='RESULT_CHECKUP'){ renderCheckup(); return; }
+  render();
+}
+
+function goBack(){
+  if(!trail.length) return;
+  const replay = trail.slice(0, -1);
+  trail = []; profile = {tags:[]}; node = 'start';
+  replay.forEach(step => choose(step.nodeId, step.idx));
+  render();
+}
+
+function reset(){ node='start'; profile={tags:[]}; trail=[]; render(); }
+
+// Only reached from "just show me everything" now — the curated
+// paths above (comms/task/unsafe) each have their own renderer.
+function renderResults(){
+  const app = document.getElementById('app');
+  const list = TOOLS.map(t=>`
+      <div class="tool">
+        <h3>${t.name}</h3>
+        <p>${t.desc}</p>
+        <div class="tags">${t.plat.map(p=>`<span class="tag">${p}</span>`).join('')}</div>
+        <a href="${t.url}" target="_blank" rel="noopener">${t.url.replace('https://','')} →</a>
+      </div>`).join('');
+
+  app.innerHTML = `
+    <header>
+      <h1>🛡️ Digital Security Tool Finder</h1>
+      <p class="sub">Every tool in the database</p>
+    </header>
+    <div class="crumbs">${trail.map(t=>t.label).join(' → ')}</div>
+    ${list}
+    <div class="row" style="margin-top:16px;">
+      <button class="btn ghost" onclick="goBack()">← Back</button>
+      <button class="btn ghost" onclick="reset()">Start over</button>
+    </div>
+    <footer>Nothing you enter here is saved, logged, or sent anywhere — this runs entirely in your browser tab.</footer>
+  `;
+}
+
+function render(){
+  const n = NODES[node];
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <header>
+      <h1>🛡️ Digital Security Tool Finder</h1>
+      <p class="sub">Answer a few questions to narrow down FOSS security tools that actually fit your situation.</p>
+      <div class="privacy">Nothing typed here is saved, logged, or transmitted — everything happens locally in this browser tab, and closing it clears it.</div>
+    </header>
+    <div class="crumbs">${trail.map(t=>t.label).join(' → ')}</div>
+    <div class="card">
+      <p class="q">${n.text}</p>
+      ${n.opts.map((o,i)=>`<button class="opt" onclick="choose('${node}', ${i})">${o.label}${o.sub?`<small>${o.sub}</small>`:''}</button>`).join('')}
+    </div>
+    ${trail.length ? `<button class="btn ghost" onclick="goBack()">← Back</button>` : ''}
+  `;
+}
+
+// platform options carry a value field
+NODES.platform.opts = NODES.platform.opts.map(([label,value])=>({label,next:null,value}));
+
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+site_name: Digital Security Tool Directory
+site_url: https://nanengagemedia-ctrl.github.io/digisecwiki/
+repo_url: https://github.com/nanengagemedia-ctrl/digisecwiki
+repo_name: digisecwiki
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.top
+    - navigation.indexes
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Interactive tools:
+      - Guided Tool Finder: tools-finder.md
+      - Comparison Table: tools-compare.md
+  - Directory:
+      - Circumvention & Anonymity: circumvention-anonymity.md
+      - Communications & Messaging: communications-messaging.md
+      - Data & File Management: data-file-management.md
+      - Browsing & Productivity: browsing-productivity.md
+  - If You Don't Feel Safe: if-you-dont-feel-safe.md
+
+markdown_extensions:
+  - tables
+  - md_in_html
+  - admonition
+  - pymdownx.details
